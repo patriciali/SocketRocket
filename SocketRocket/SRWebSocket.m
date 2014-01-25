@@ -225,6 +225,8 @@ typedef void (^data_callback)(SRWebSocket *webSocket,  NSData *data);
 @property (nonatomic) NSOperationQueue *delegateOperationQueue;
 @property (nonatomic) dispatch_queue_t delegateDispatchQueue;
 
+@property (nonatomic) NSTimer *connectionTimer;
+
 @end
 
 
@@ -363,6 +365,8 @@ static __strong NSData *CRLFCRLF;
     
     _scheduledRunloops = [[NSMutableSet alloc] init];
     
+    _connectionTimeoutInterval = 20.0f;
+    
     [self _initializeStreams];
     
     // default handlers
@@ -380,6 +384,8 @@ static __strong NSData *CRLFCRLF;
 
     [_inputStream close];
     [_outputStream close];
+    
+    [self _cancelConnectionTimer];
     
     sr_dispatch_release(_workQueue);
     _workQueue = NULL;
@@ -483,6 +489,7 @@ static __strong NSData *CRLFCRLF;
     }
     
     self.readyState = SR_OPEN;
+    [self _cancelConnectionTimer];
     
     if (!_didFail) {
         [self _readFrameNew];
@@ -603,6 +610,8 @@ static __strong NSData *CRLFCRLF;
     
     [_outputStream open];
     [_inputStream open];
+    
+    [self _startConnectionTimer];
 }
 
 - (void)scheduleInRunLoop:(NSRunLoop *)aRunLoop forMode:(NSString *)mode;
@@ -1487,6 +1496,39 @@ static const size_t SRFrameHeaderOverhead = 32;
                 break;
         }
     });
+}
+
+#pragma mark Connection Timeout (by Emmett)
+// adapted from unpulled pull request https://github.com/square/SocketRocket/pull/131
+
+- (void)_startConnectionTimer
+{
+    NSDate *timeoutDate = [NSDate dateWithTimeIntervalSinceNow:_connectionTimeoutInterval];
+    
+    _connectionTimer = [[NSTimer alloc] initWithFireDate:timeoutDate
+                                                interval:0.0
+                                                  target:self
+                                                selector:@selector(_connectionDidTimeout)
+                                                userInfo:nil
+                                                 repeats:NO];
+    
+    [[NSRunLoop SR_networkRunLoop] addTimer:_connectionTimer
+                                    forMode:NSDefaultRunLoopMode];
+}
+
+- (void)_cancelConnectionTimer
+{
+    [_connectionTimer invalidate];
+    _connectionTimer = nil;
+}
+
+- (void)_connectionDidTimeout
+{
+    SRFastLog(@"connectionDidTimeout");
+    [self _cancelConnectionTimer];
+    [self _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket"
+                                             code:408
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Connection timed out"}]];
 }
 
 @end
