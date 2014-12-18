@@ -40,6 +40,7 @@ typedef enum SRStatusCode : NSInteger {
 @class SRWebSocket;
 
 extern NSString *const SRWebSocketErrorDomain;
+extern NSString *const SRHTTPResponseErrorKey;
 
 #pragma mark - SRWebSocketDelegate
 
@@ -49,7 +50,7 @@ extern NSString *const SRWebSocketErrorDomain;
 
 @interface SRWebSocket : NSObject <NSStreamDelegate>
 
-@property (nonatomic, assign) id <SRWebSocketDelegate> delegate;
+@property (nonatomic, weak) id <SRWebSocketDelegate> delegate;
 
 @property (nonatomic, readonly) SRReadyState readyState;
 @property (nonatomic, readonly, retain) NSURL *url;
@@ -86,6 +87,9 @@ extern NSString *const SRWebSocketErrorDomain;
 // Send a UTF8 String or Data.
 - (void)send:(id)data;
 
+// Send Data (can be nil) in a ping message.
+- (void)sendPing:(NSData *)data;
+
 @end
 
 #pragma mark - SRWebSocketDelegate
@@ -101,6 +105,7 @@ extern NSString *const SRWebSocketErrorDomain;
 - (void)webSocketDidOpen:(SRWebSocket *)webSocket;
 - (void)webSocket:(SRWebSocket *)webSocket didFailWithError:(NSError *)error;
 - (void)webSocket:(SRWebSocket *)webSocket didCloseWithCode:(NSInteger)code reason:(NSString *)reason wasClean:(BOOL)wasClean;
+- (void)webSocket:(SRWebSocket *)webSocket didReceivePong:(NSData *)pongPayload;
 
 @end
 
